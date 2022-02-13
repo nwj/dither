@@ -1,4 +1,6 @@
+use anyhow::Result;
 use clap::Parser;
+use image::io::Reader as ImageReader;
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -9,8 +11,11 @@ struct Args {
     output_path: PathBuf,
 }
 
-fn main() {
+fn main() -> Result<()> {
     let args = Args::parse();
 
-    println!("in: {:?}, out: {:?}", args.input_path, args.output_path);
+    let img = ImageReader::open(args.input_path)?.decode()?;
+    img.save(args.output_path)?;
+
+    Ok(())
 }
