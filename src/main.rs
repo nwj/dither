@@ -19,6 +19,7 @@ enum Mode {
     Naive1d,
     Naive2d,
     FloydSteinberg,
+    Atkinson,
 }
 
 fn main() -> Result<()> {
@@ -29,6 +30,7 @@ fn main() -> Result<()> {
         Mode::Naive1d => naive_1d_error_diffusion(&mut img),
         Mode::Naive2d => naive_2d_error_diffusion(&mut img),
         Mode::FloydSteinberg => floyd_steinberg_dithering(&mut img),
+        Mode::Atkinson => atkinson_dithering(&mut img),
     }
 
     img.save(args.output_path)?;
@@ -75,6 +77,30 @@ fn floyd_steinberg_dithering(img: &mut GrayImage) {
             diffuse_error_to_pixel(img, x, y + 1, quantization_error, 5, 16);
             if x != 0 {
                 diffuse_error_to_pixel(img, x - 1, y + 1, quantization_error, 3, 16);
+            }
+        }
+    }
+}
+
+fn atkinson_dithering(img: &mut GrayImage) {
+    let (width, height) = img.dimensions();
+
+    for y in 0..height - 1 {
+        let mut quantization_error;
+
+        for x in 0..width - 1 {
+            quantization_error = quantize_pixel(img, x, y);
+            diffuse_error_to_pixel(img, x + 1, y, quantization_error, 1, 8);
+            diffuse_error_to_pixel(img, x + 1, y + 1, quantization_error, 1, 8);
+            diffuse_error_to_pixel(img, x, y + 1, quantization_error, 1, 8);
+            if x != width - 2 {
+                diffuse_error_to_pixel(img, x + 2, y, quantization_error, 1, 8);
+            }
+            if y != height - 2 {
+                diffuse_error_to_pixel(img, x, y + 2, quantization_error, 1, 8);
+            }
+            if x != 0 {
+                diffuse_error_to_pixel(img, x - 1, y + 1, quantization_error, 1, 8);
             }
         }
     }
