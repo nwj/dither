@@ -15,7 +15,7 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     let img = ImageReader::open(args.input_path)?.decode()?;
-    img.save(args.output_path)?;
+    img.grayscale().save(args.output_path)?;
 
     Ok(())
 }
