@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{ArgEnum, Parser};
 use image::io::Reader as ImageReader;
-use image::{GrayImage, Luma};
+use image::{GenericImageView, GrayImage, Luma};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -20,6 +20,7 @@ enum Mode {
     Naive2d,
     FloydSteinberg,
     Atkinson,
+    Sierra,
 }
 
 fn main() -> Result<()> {
@@ -31,6 +32,7 @@ fn main() -> Result<()> {
         Mode::Naive2d => naive_2d_error_diffusion(&mut img),
         Mode::FloydSteinberg => floyd_steinberg_dithering(&mut img),
         Mode::Atkinson => atkinson_dithering(&mut img),
+        Mode::Sierra => sierra_dithering(&mut img),
     }
 
     img.save(args.output_path)?;
@@ -58,8 +60,8 @@ fn naive_2d_error_diffusion(img: &mut GrayImage) {
 
         for x in 0..width - 1 {
             quantization_error = quantize_pixel(img, x, y);
-            diffuse_error_to_pixel(img, x + 1, y, quantization_error, 1, 2);
             diffuse_error_to_pixel(img, x, y + 1, quantization_error, 1, 2);
+            diffuse_error_to_pixel(img, x + 1, y, quantization_error, 1, 2);
         }
     }
 }
@@ -72,10 +74,10 @@ fn floyd_steinberg_dithering(img: &mut GrayImage) {
 
         for x in 0..width - 1 {
             quantization_error = quantize_pixel(img, x, y);
+            diffuse_error_to_pixel(img, x, y + 1, quantization_error, 5, 16);
             diffuse_error_to_pixel(img, x + 1, y, quantization_error, 7, 16);
             diffuse_error_to_pixel(img, x + 1, y + 1, quantization_error, 1, 16);
-            diffuse_error_to_pixel(img, x, y + 1, quantization_error, 5, 16);
-            if x != 0 {
+            if x > 0 {
                 diffuse_error_to_pixel(img, x - 1, y + 1, quantization_error, 3, 16);
             }
         }
@@ -90,17 +92,40 @@ fn atkinson_dithering(img: &mut GrayImage) {
 
         for x in 0..width - 1 {
             quantization_error = quantize_pixel(img, x, y);
+            diffuse_error_to_pixel(img, x, y + 1, quantization_error, 1, 8);
+            diffuse_error_to_pixel(img, x, y + 2, quantization_error, 1, 8);
             diffuse_error_to_pixel(img, x + 1, y, quantization_error, 1, 8);
             diffuse_error_to_pixel(img, x + 1, y + 1, quantization_error, 1, 8);
-            diffuse_error_to_pixel(img, x, y + 1, quantization_error, 1, 8);
-            if x != width - 2 {
-                diffuse_error_to_pixel(img, x + 2, y, quantization_error, 1, 8);
-            }
-            if y != height - 2 {
-                diffuse_error_to_pixel(img, x, y + 2, quantization_error, 1, 8);
-            }
-            if x != 0 {
+            diffuse_error_to_pixel(img, x + 2, y, quantization_error, 1, 8);
+            if x > 0 {
                 diffuse_error_to_pixel(img, x - 1, y + 1, quantization_error, 1, 8);
+            }
+        }
+    }
+}
+
+fn sierra_dithering(img: &mut GrayImage) {
+    let (width, height) = img.dimensions();
+
+    for y in 0..height - 1 {
+        let mut quantization_error;
+
+        for x in 0..width - 1 {
+            quantization_error = quantize_pixel(img, x, y);
+            diffuse_error_to_pixel(img, x, y + 1, quantization_error, 5, 32);
+            diffuse_error_to_pixel(img, x, y + 2, quantization_error, 3, 32);
+            diffuse_error_to_pixel(img, x + 1, y, quantization_error, 5, 32);
+            diffuse_error_to_pixel(img, x + 1, y + 1, quantization_error, 4, 32);
+            diffuse_error_to_pixel(img, x + 1, y + 2, quantization_error, 2, 32);
+            diffuse_error_to_pixel(img, x + 2, y, quantization_error, 3, 32);
+            diffuse_error_to_pixel(img, x + 2, y + 1, quantization_error, 2, 32);
+            if x > 0 {
+                diffuse_error_to_pixel(img, x - 1, y + 1, quantization_error, 4, 32);
+                diffuse_error_to_pixel(img, x - 1, y + 1, quantization_error, 2, 32);
+            }
+
+            if x > 1 {
+                diffuse_error_to_pixel(img, x - 2, y + 1, quantization_error, 2, 32);
             }
         }
     }
@@ -128,13 +153,15 @@ fn diffuse_error_to_pixel(
     y: u32,
     err: i16,
     factor_numerator: i16,
-    factor_denumerator: i16,
+    factor_denominator: i16,
 ) {
-    let old_intensity = img.get_pixel(x, y)[0];
-    let new_intensity =
-        coerce_to_u8(i16::from(old_intensity) + err * factor_numerator / factor_denumerator);
-    let new_pixel = Luma::<u8>([new_intensity]);
-    img.put_pixel(x, y, new_pixel);
+    if img.in_bounds(x, y) {
+        let old_intensity = img.get_pixel(x, y)[0];
+        let new_intensity =
+            coerce_to_u8(i16::from(old_intensity) + err * factor_numerator / factor_denominator);
+        let new_pixel = Luma::<u8>([new_intensity]);
+        img.put_pixel(x, y, new_pixel);
+    }
 }
 
 fn coerce_to_u8(i: i16) -> u8 {
