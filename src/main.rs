@@ -18,6 +18,7 @@ struct Args {
 enum Mode {
     Naive1d,
     Naive2d,
+    FloydSteinberg,
 }
 
 fn main() -> Result<()> {
@@ -27,6 +28,7 @@ fn main() -> Result<()> {
     match args.mode {
         Mode::Naive1d => naive_1d_error_diffusion(&mut img),
         Mode::Naive2d => naive_2d_error_diffusion(&mut img),
+        Mode::FloydSteinberg => floyd_steinberg_dithering(&mut img),
     }
 
     img.save(args.output_path)?;
@@ -41,7 +43,7 @@ fn naive_1d_error_diffusion(img: &mut GrayImage) {
 
         for x in 0..width - 1 {
             quantization_error = quantize_pixel(img, x, y);
-            diffuse_error_to_pixel(img, x + 1, y, quantization_error);
+            diffuse_error_to_pixel(img, x + 1, y, quantization_error, 1, 1);
         }
     }
 }
@@ -54,8 +56,26 @@ fn naive_2d_error_diffusion(img: &mut GrayImage) {
 
         for x in 0..width - 1 {
             quantization_error = quantize_pixel(img, x, y);
-            diffuse_error_to_pixel(img, x + 1, y, quantization_error / 2);
-            diffuse_error_to_pixel(img, x, y + 1, quantization_error / 2);
+            diffuse_error_to_pixel(img, x + 1, y, quantization_error, 1, 2);
+            diffuse_error_to_pixel(img, x, y + 1, quantization_error, 1, 2);
+        }
+    }
+}
+
+fn floyd_steinberg_dithering(img: &mut GrayImage) {
+    let (width, height) = img.dimensions();
+
+    for y in 0..height - 1 {
+        let mut quantization_error;
+
+        for x in 0..width - 1 {
+            quantization_error = quantize_pixel(img, x, y);
+            diffuse_error_to_pixel(img, x + 1, y, quantization_error, 7, 16);
+            diffuse_error_to_pixel(img, x + 1, y + 1, quantization_error, 1, 16);
+            diffuse_error_to_pixel(img, x, y + 1, quantization_error, 5, 16);
+            if x != 0 {
+                diffuse_error_to_pixel(img, x - 1, y + 1, quantization_error, 3, 16);
+            }
         }
     }
 }
@@ -63,25 +83,30 @@ fn naive_2d_error_diffusion(img: &mut GrayImage) {
 fn quantize_pixel(img: &mut GrayImage, x: u32, y: u32) -> i16 {
     let old_intensity = img.get_pixel(x, y)[0];
     let new_intensity;
-    let quantization_error;
 
     if old_intensity > 127 {
         new_intensity = 255;
-        quantization_error = i16::from(old_intensity) - 255;
     } else {
         new_intensity = 0;
-        quantization_error = i16::from(old_intensity);
     }
 
     let new_pixel = Luma::<u8>([new_intensity]);
     img.put_pixel(x, y, new_pixel);
 
-    quantization_error
+    i16::from(old_intensity) - i16::from(new_intensity)
 }
 
-fn diffuse_error_to_pixel(img: &mut GrayImage, x: u32, y: u32, err: i16) {
+fn diffuse_error_to_pixel(
+    img: &mut GrayImage,
+    x: u32,
+    y: u32,
+    err: i16,
+    factor_numerator: i16,
+    factor_denumerator: i16,
+) {
     let old_intensity = img.get_pixel(x, y)[0];
-    let new_intensity = coerce_to_u8(i16::from(old_intensity) + err);
+    let new_intensity =
+        coerce_to_u8(i16::from(old_intensity) + err * factor_numerator / factor_denumerator);
     let new_pixel = Luma::<u8>([new_intensity]);
     img.put_pixel(x, y, new_pixel);
 }
