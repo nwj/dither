@@ -16,6 +16,7 @@ struct Args {
 
 #[derive(Copy, Clone, PartialEq, Eq, ArgEnum)]
 enum Mode {
+    NaiveQuantization,
     Naive1d,
     Naive2d,
     FloydSteinberg,
@@ -28,8 +29,9 @@ fn main() -> Result<()> {
     let mut img = ImageReader::open(args.input_path)?.decode()?.to_luma8();
 
     match args.mode {
-        Mode::Naive1d => naive_1d_error_diffusion(&mut img),
-        Mode::Naive2d => naive_2d_error_diffusion(&mut img),
+        Mode::NaiveQuantization => naive_quantization(&mut img),
+        Mode::Naive1d => naive_1d_dithering(&mut img),
+        Mode::Naive2d => naive_2d_dithering(&mut img),
         Mode::FloydSteinberg => floyd_steinberg_dithering(&mut img),
         Mode::Atkinson => atkinson_dithering(&mut img),
         Mode::Sierra => sierra_dithering(&mut img),
@@ -39,7 +41,17 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn naive_1d_error_diffusion(img: &mut GrayImage) {
+fn naive_quantization(img: &mut GrayImage) {
+    let (width, height) = img.dimensions();
+
+    for y in 0..height - 1 {
+        for x in 0..width - 1 {
+            quantize_pixel(img, x, y);
+        }
+    }
+}
+
+fn naive_1d_dithering(img: &mut GrayImage) {
     let (width, height) = img.dimensions();
 
     for y in 0..height - 1 {
@@ -52,7 +64,7 @@ fn naive_1d_error_diffusion(img: &mut GrayImage) {
     }
 }
 
-fn naive_2d_error_diffusion(img: &mut GrayImage) {
+fn naive_2d_dithering(img: &mut GrayImage) {
     let (width, height) = img.dimensions();
 
     for y in 0..height - 1 {
