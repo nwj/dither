@@ -16,12 +16,18 @@ struct Args {
 
 #[derive(Copy, Clone, PartialEq, Eq, ArgEnum)]
 enum Mode {
-    NaiveQuantization,
+    Quantization,
     Naive1d,
     Naive2d,
     FloydSteinberg,
+    FalseFloydSteinberg,
+    JarvisJudiceNinke,
+    Stucki,
     Atkinson,
+    Burkes,
     Sierra,
+    TwoRowSierra,
+    SierraLite,
 }
 
 fn main() -> Result<()> {
@@ -29,12 +35,18 @@ fn main() -> Result<()> {
     let mut img = ImageReader::open(args.input_path)?.decode()?.to_luma8();
 
     match args.mode {
-        Mode::NaiveQuantization => naive_quantization(&mut img),
+        Mode::Quantization => quantization(&mut img),
         Mode::Naive1d => naive_1d_dithering(&mut img),
         Mode::Naive2d => naive_2d_dithering(&mut img),
         Mode::FloydSteinberg => floyd_steinberg_dithering(&mut img),
+        Mode::FalseFloydSteinberg => false_floyd_steinberg_dithering(&mut img),
+        Mode::JarvisJudiceNinke => jarvis_judice_ninke_dithering(&mut img),
+        Mode::Stucki => stucki_dithering(&mut img),
         Mode::Atkinson => atkinson_dithering(&mut img),
+        Mode::Burkes => burkes_dithering(&mut img),
         Mode::Sierra => sierra_dithering(&mut img),
+        Mode::TwoRowSierra => two_row_sierra_dithering(&mut img),
+        Mode::SierraLite => sierra_lite_dithering(&mut img),
     }
 
     img.save(args.output_path)?;
@@ -45,7 +57,7 @@ type Delta = (i32, i32);
 type Ratio = (i16, i16);
 struct Coord(Delta, Ratio);
 
-fn naive_quantization(img: &mut GrayImage) {
+fn quantization(img: &mut GrayImage) {
     generic_dithering(img, &[]);
 }
 
@@ -69,6 +81,51 @@ fn floyd_steinberg_dithering(img: &mut GrayImage) {
     generic_dithering(img, &diffusion_matrix);
 }
 
+fn false_floyd_steinberg_dithering(img: &mut GrayImage) {
+    let diffusion_matrix = [
+        Coord((1, 0), (3, 8)),
+        Coord((0, 1), (3, 8)),
+        Coord((1, 1), (2, 8)),
+    ];
+    generic_dithering(img, &diffusion_matrix);
+}
+
+fn jarvis_judice_ninke_dithering(img: &mut GrayImage) {
+    let diffusion_matrix = [
+        Coord((1, 0), (7, 48)),
+        Coord((2, 0), (5, 48)),
+        Coord((0, 1), (7, 48)),
+        Coord((0, 2), (5, 48)),
+        Coord((1, 1), (5, 48)),
+        Coord((1, 2), (3, 48)),
+        Coord((2, 1), (3, 48)),
+        Coord((2, 2), (1, 48)),
+        Coord((-1, 1), (5, 48)),
+        Coord((-1, 2), (3, 48)),
+        Coord((-2, 1), (3, 48)),
+        Coord((-2, 2), (1, 48)),
+    ];
+    generic_dithering(img, &diffusion_matrix);
+}
+
+fn stucki_dithering(img: &mut GrayImage) {
+    let diffusion_matrix = [
+        Coord((1, 0), (8, 42)),
+        Coord((2, 0), (4, 42)),
+        Coord((0, 1), (8, 42)),
+        Coord((0, 2), (4, 42)),
+        Coord((1, 1), (4, 42)),
+        Coord((1, 2), (2, 42)),
+        Coord((2, 1), (2, 42)),
+        Coord((2, 2), (1, 42)),
+        Coord((-1, 1), (4, 42)),
+        Coord((-1, 2), (2, 42)),
+        Coord((-2, 1), (2, 42)),
+        Coord((-2, 2), (1, 42)),
+    ];
+    generic_dithering(img, &diffusion_matrix);
+}
+
 fn atkinson_dithering(img: &mut GrayImage) {
     let diffusion_matrix = [
         Coord((1, 0), (1, 8)),
@@ -77,6 +134,19 @@ fn atkinson_dithering(img: &mut GrayImage) {
         Coord((0, 2), (1, 8)),
         Coord((1, 1), (1, 8)),
         Coord((-1, 1), (1, 8)),
+    ];
+    generic_dithering(img, &diffusion_matrix);
+}
+
+fn burkes_dithering(img: &mut GrayImage) {
+    let diffusion_matrix = [
+        Coord((1, 0), (8, 32)),
+        Coord((2, 0), (4, 32)),
+        Coord((0, 1), (8, 32)),
+        Coord((1, 1), (4, 32)),
+        Coord((2, 1), (2, 32)),
+        Coord((-1, 1), (4, 32)),
+        Coord((-2, 1), (2, 32)),
     ];
     generic_dithering(img, &diffusion_matrix);
 }
@@ -93,6 +163,28 @@ fn sierra_dithering(img: &mut GrayImage) {
         Coord((-1, 1), (4, 32)),
         Coord((-1, 2), (2, 32)),
         Coord((-2, 1), (2, 32)),
+    ];
+    generic_dithering(img, &diffusion_matrix);
+}
+
+fn two_row_sierra_dithering(img: &mut GrayImage) {
+    let diffusion_matrix = [
+        Coord((1, 0), (4, 16)),
+        Coord((2, 0), (3, 16)),
+        Coord((0, 1), (3, 16)),
+        Coord((1, 1), (2, 16)),
+        Coord((2, 1), (1, 16)),
+        Coord((-1, 1), (2, 16)),
+        Coord((-2, 1), (1, 16)),
+    ];
+    generic_dithering(img, &diffusion_matrix);
+}
+
+fn sierra_lite_dithering(img: &mut GrayImage) {
+    let diffusion_matrix = [
+        Coord((1, 0), (2, 4)),
+        Coord((0, 1), (1, 4)),
+        Coord((-1, 1), (1, 4)),
     ];
     generic_dithering(img, &diffusion_matrix);
 }
