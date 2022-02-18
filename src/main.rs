@@ -41,103 +41,76 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn naive_quantization(img: &mut GrayImage) {
-    let (width, height) = img.dimensions();
+type Delta = (i32, i32);
+type Ratio = (i16, i16);
+struct Coord(Delta, Ratio);
 
-    for y in 0..height - 1 {
-        for x in 0..width - 1 {
-            quantize_pixel(img, x, y);
-        }
-    }
+fn naive_quantization(img: &mut GrayImage) {
+    generic_dithering(img, &[]);
 }
 
 fn naive_1d_dithering(img: &mut GrayImage) {
-    let (width, height) = img.dimensions();
-
-    for y in 0..height - 1 {
-        let mut quantization_error;
-
-        for x in 0..width - 1 {
-            quantization_error = quantize_pixel(img, x, y);
-            diffuse_error_to_pixel(img, x + 1, y, quantization_error, 1, 1);
-        }
-    }
+    let diffusion_matrix = [Coord((1, 0), (1, 1))];
+    generic_dithering(img, &diffusion_matrix);
 }
 
 fn naive_2d_dithering(img: &mut GrayImage) {
-    let (width, height) = img.dimensions();
-
-    for y in 0..height - 1 {
-        let mut quantization_error;
-
-        for x in 0..width - 1 {
-            quantization_error = quantize_pixel(img, x, y);
-            diffuse_error_to_pixel(img, x, y + 1, quantization_error, 1, 2);
-            diffuse_error_to_pixel(img, x + 1, y, quantization_error, 1, 2);
-        }
-    }
+    let diffusion_matrix = [Coord((1, 0), (1, 2)), Coord((0, 1), (1, 2))];
+    generic_dithering(img, &diffusion_matrix);
 }
 
 fn floyd_steinberg_dithering(img: &mut GrayImage) {
-    let (width, height) = img.dimensions();
-
-    for y in 0..height - 1 {
-        let mut quantization_error;
-
-        for x in 0..width - 1 {
-            quantization_error = quantize_pixel(img, x, y);
-            diffuse_error_to_pixel(img, x, y + 1, quantization_error, 5, 16);
-            diffuse_error_to_pixel(img, x + 1, y, quantization_error, 7, 16);
-            diffuse_error_to_pixel(img, x + 1, y + 1, quantization_error, 1, 16);
-            if x > 0 {
-                diffuse_error_to_pixel(img, x - 1, y + 1, quantization_error, 3, 16);
-            }
-        }
-    }
+    let diffusion_matrix = [
+        Coord((1, 0), (7, 16)),
+        Coord((0, 1), (5, 16)),
+        Coord((1, 1), (1, 16)),
+        Coord((-1, 1), (3, 16)),
+    ];
+    generic_dithering(img, &diffusion_matrix);
 }
 
 fn atkinson_dithering(img: &mut GrayImage) {
-    let (width, height) = img.dimensions();
-
-    for y in 0..height - 1 {
-        let mut quantization_error;
-
-        for x in 0..width - 1 {
-            quantization_error = quantize_pixel(img, x, y);
-            diffuse_error_to_pixel(img, x, y + 1, quantization_error, 1, 8);
-            diffuse_error_to_pixel(img, x, y + 2, quantization_error, 1, 8);
-            diffuse_error_to_pixel(img, x + 1, y, quantization_error, 1, 8);
-            diffuse_error_to_pixel(img, x + 1, y + 1, quantization_error, 1, 8);
-            diffuse_error_to_pixel(img, x + 2, y, quantization_error, 1, 8);
-            if x > 0 {
-                diffuse_error_to_pixel(img, x - 1, y + 1, quantization_error, 1, 8);
-            }
-        }
-    }
+    let diffusion_matrix = [
+        Coord((1, 0), (1, 8)),
+        Coord((2, 0), (1, 8)),
+        Coord((0, 1), (1, 8)),
+        Coord((0, 2), (1, 8)),
+        Coord((1, 1), (1, 8)),
+        Coord((-1, 1), (1, 8)),
+    ];
+    generic_dithering(img, &diffusion_matrix);
 }
 
 fn sierra_dithering(img: &mut GrayImage) {
+    let diffusion_matrix = [
+        Coord((1, 0), (5, 32)),
+        Coord((2, 0), (3, 32)),
+        Coord((0, 1), (5, 32)),
+        Coord((0, 2), (3, 32)),
+        Coord((1, 1), (4, 32)),
+        Coord((2, 1), (2, 32)),
+        Coord((1, 2), (2, 32)),
+        Coord((-1, 1), (4, 32)),
+        Coord((-1, 2), (2, 32)),
+        Coord((-2, 1), (2, 32)),
+    ];
+    generic_dithering(img, &diffusion_matrix);
+}
+
+fn generic_dithering(img: &mut GrayImage, diffusion_matrix: &[Coord]) {
     let (width, height) = img.dimensions();
 
     for y in 0..height - 1 {
-        let mut quantization_error;
-
         for x in 0..width - 1 {
-            quantization_error = quantize_pixel(img, x, y);
-            diffuse_error_to_pixel(img, x, y + 1, quantization_error, 5, 32);
-            diffuse_error_to_pixel(img, x, y + 2, quantization_error, 3, 32);
-            diffuse_error_to_pixel(img, x + 1, y, quantization_error, 5, 32);
-            diffuse_error_to_pixel(img, x + 1, y + 1, quantization_error, 4, 32);
-            diffuse_error_to_pixel(img, x + 1, y + 2, quantization_error, 2, 32);
-            diffuse_error_to_pixel(img, x + 2, y, quantization_error, 3, 32);
-            diffuse_error_to_pixel(img, x + 2, y + 1, quantization_error, 2, 32);
-            if x > 0 {
-                diffuse_error_to_pixel(img, x - 1, y + 1, quantization_error, 4, 32);
-                diffuse_error_to_pixel(img, x - 1, y + 1, quantization_error, 2, 32);
-            }
+            let quant_err = quantize_pixel(img, x, y);
 
-            if x > 1 {
-                diffuse_error_to_pixel(img, x - 2, y + 1, quantization_error, 2, 32);
+            for &Coord((delta_x, delta_y), (numerator, denominator)) in diffusion_matrix {
+                if let (Some(new_x), Some(new_y)) = (
+                    checked_add_signed(x, delta_x),
+                    checked_add_signed(y, delta_y),
+                ) {
+                    diffuse_error_to_pixel(img, new_x, new_y, quant_err, numerator, denominator)
+                }
             }
         }
     }
@@ -183,5 +156,13 @@ fn coerce_to_u8(i: i16) -> u8 {
         std::u8::MIN
     } else {
         i as u8
+    }
+}
+
+fn checked_add_signed(a: u32, b: i32) -> Option<u32> {
+    if b.is_positive() {
+        a.checked_add(b as u32)
+    } else {
+        a.checked_sub(b.abs() as u32)
     }
 }
