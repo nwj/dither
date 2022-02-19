@@ -2,6 +2,8 @@ use anyhow::Result;
 use clap::{ArgEnum, Parser};
 use image::io::Reader as ImageReader;
 use image::{GenericImageView, GrayImage, Luma};
+use rand::prelude::*;
+use rand::rngs::SmallRng;
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -10,13 +12,14 @@ struct Args {
     input_path: PathBuf,
     #[clap(parse(from_str))]
     output_path: PathBuf,
-    #[clap(short,long, arg_enum, default_value_t = Mode::Naive1d)]
+    #[clap(short,long, arg_enum, default_value_t = Mode::FloydSteinberg)]
     mode: Mode,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, ArgEnum)]
 enum Mode {
     Quantization,
+    Random,
     Naive1d,
     Naive2d,
     FloydSteinberg,
@@ -36,6 +39,7 @@ fn main() -> Result<()> {
 
     match args.mode {
         Mode::Quantization => quantization(&mut img),
+        Mode::Random => random_quantization(&mut img),
         Mode::Naive1d => naive_1d_dithering(&mut img),
         Mode::Naive2d => naive_2d_dithering(&mut img),
         Mode::FloydSteinberg => floyd_steinberg_dithering(&mut img),
@@ -58,7 +62,24 @@ type Ratio = (i16, i16);
 struct Coord(Delta, Ratio);
 
 fn quantization(img: &mut GrayImage) {
-    generic_dithering(img, &[]);
+    let (width, height) = img.dimensions();
+
+    for y in 0..height - 1 {
+        for x in 0..width - 1 {
+            quantize_pixel(img, x, y);
+        }
+    }
+}
+
+fn random_quantization(img: &mut GrayImage) {
+    let mut rng = SmallRng::from_entropy();
+    let (width, height) = img.dimensions();
+
+    for y in 0..height - 1 {
+        for x in 0..width - 1 {
+            quantize_pixel_with_rng(&mut rng, img, x, y);
+        }
+    }
 }
 
 fn naive_1d_dithering(img: &mut GrayImage) {
@@ -189,6 +210,39 @@ fn sierra_lite_dithering(img: &mut GrayImage) {
     generic_dithering(img, &diffusion_matrix);
 }
 
+fn quantize_pixel(img: &mut GrayImage, x: u32, y: u32) -> i16 {
+    let old_intensity = img.get_pixel(x, y)[0];
+    let new_intensity;
+
+    if old_intensity > 127 {
+        new_intensity = 255;
+    } else {
+        new_intensity = 0;
+    }
+
+    let new_pixel = Luma::<u8>([new_intensity]);
+    img.put_pixel(x, y, new_pixel);
+
+    i16::from(old_intensity) - i16::from(new_intensity)
+}
+
+fn quantize_pixel_with_rng(mut rng: impl rand::Rng, img: &mut GrayImage, x: u32, y: u32) -> i16 {
+    let old_intensity = img.get_pixel(x, y)[0];
+    let random_intensity = rng.gen_range(0..255);
+    let new_intensity;
+
+    if random_intensity > old_intensity {
+        new_intensity = 0;
+    } else {
+        new_intensity = 255;
+    }
+
+    let new_pixel = Luma::<u8>([new_intensity]);
+    img.put_pixel(x, y, new_pixel);
+
+    i16::from(old_intensity) - i16::from(new_intensity)
+}
+
 fn generic_dithering(img: &mut GrayImage, diffusion_matrix: &[Coord]) {
     let (width, height) = img.dimensions();
 
@@ -206,22 +260,6 @@ fn generic_dithering(img: &mut GrayImage, diffusion_matrix: &[Coord]) {
             }
         }
     }
-}
-
-fn quantize_pixel(img: &mut GrayImage, x: u32, y: u32) -> i16 {
-    let old_intensity = img.get_pixel(x, y)[0];
-    let new_intensity;
-
-    if old_intensity > 127 {
-        new_intensity = 255;
-    } else {
-        new_intensity = 0;
-    }
-
-    let new_pixel = Luma::<u8>([new_intensity]);
-    img.put_pixel(x, y, new_pixel);
-
-    i16::from(old_intensity) - i16::from(new_intensity)
 }
 
 fn diffuse_error_to_pixel(
