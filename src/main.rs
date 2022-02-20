@@ -1,26 +1,32 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use clap::{ArgEnum, Parser};
 use image::io::Reader as ImageReader;
 use image::{GenericImageView, GrayImage, Luma};
 use rand::prelude::*;
 use rand::rngs::SmallRng;
+use std::fmt;
 use std::path::PathBuf;
 
 #[derive(Parser)]
 #[clap(author, version, about)]
 struct Args {
-    /// Input image file. Most common image formats (jpg, png, etc.) are supported.
+    /// Input image file. Most common image formats (JPG, PNG, etc.) are supported.
     #[clap(parse(from_str))]
     input_path: PathBuf,
-    /// Output image file. Any pre-existing file here will be overwritten.
+    /// Optional path for the output image file.
+    ///
+    /// Any pre-existing files at this path will be overwritten.
+    ///
+    /// Defaults to the input file name appended with the name of the dithering algorithm and
+    /// converted to PNG (if necessary). For example, 'input.jpg' becomes 'input-floyd-steinberg.png'.
     #[clap(parse(from_str))]
-    output_path: PathBuf,
+    output_path: Option<PathBuf>,
     /// Specify the dithering algorithm that will be applied.
     #[clap(short,long, arg_enum, default_value_t = Mode::FloydSteinberg)]
     mode: Mode,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, ArgEnum)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ArgEnum)]
 enum Mode {
     Quantization,
     Random,
@@ -37,9 +43,32 @@ enum Mode {
     SierraLite,
 }
 
+impl fmt::Display for Mode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let display_name = match self {
+            Mode::Quantization => "quantization",
+            Mode::Random => "random",
+            Mode::Naive1d => "naive1d",
+            Mode::Naive2d => "naive2d",
+            Mode::FloydSteinberg => "floyd-steinberg",
+            Mode::FalseFloydSteinberg => "false-floyd-steinberg",
+            Mode::JarvisJudiceNinke => "jarvis-judice-ninke",
+            Mode::Stucki => "stucki",
+            Mode::Atkinson => "atkinson",
+            Mode::Burkes => "burkes",
+            Mode::Sierra => "sierra",
+            Mode::TwoRowSierra => "two-row-sierra",
+            Mode::SierraLite => "sierra-lite",
+        };
+        write!(f, "{}", display_name)
+    }
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
-    let mut img = ImageReader::open(args.input_path)?.decode()?.to_luma8();
+    let mut img = ImageReader::open(&args.input_path)?
+        .decode()?
+        .to_luma8();
 
     match args.mode {
         Mode::Quantization => quantization(&mut img),
@@ -57,7 +86,20 @@ fn main() -> Result<()> {
         Mode::SierraLite => sierra_lite_dithering(&mut img),
     }
 
-    img.save(args.output_path)?;
+    let output_path = match args.output_path {
+        Some(p) => p,
+        None => {
+            // TODO modify to use #file_prefix instead of #file_stem, once that enters rust stable
+            let file_stem = args
+                .input_path
+                .file_stem()
+                .ok_or_else(|| anyhow!("Unable to parse input path."))?
+                .to_str()
+                .ok_or_else(|| anyhow!("Unable to parse input path."))?;
+            PathBuf::from(format!("{}-{}.png", file_stem, args.mode))
+        }
+    };
+    img.save(output_path)?;
     Ok(())
 }
 
@@ -293,6 +335,7 @@ fn coerce_to_u8(i: i16) -> u8 {
     }
 }
 
+// TODO replace with the std library's version of checked_add_signed, once that enters rust stable
 fn checked_add_signed(a: u32, b: i32) -> Option<u32> {
     if b.is_positive() {
         a.checked_add(b as u32)
