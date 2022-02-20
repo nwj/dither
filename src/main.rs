@@ -7,11 +7,15 @@ use rand::rngs::SmallRng;
 use std::path::PathBuf;
 
 #[derive(Parser)]
+#[clap(author, version, about)]
 struct Args {
+    /// Input image file. Most common image formats (jpg, png, etc.) are supported.
     #[clap(parse(from_str))]
     input_path: PathBuf,
+    /// Output image file. Any pre-existing file here will be overwritten.
     #[clap(parse(from_str))]
     output_path: PathBuf,
+    /// Specify the dithering algorithm that will be applied.
     #[clap(short,long, arg_enum, default_value_t = Mode::FloydSteinberg)]
     mode: Mode,
 }
@@ -214,10 +218,10 @@ fn quantize_pixel(img: &mut GrayImage, x: u32, y: u32) -> i16 {
     let old_intensity = img.get_pixel(x, y)[0];
     let new_intensity;
 
-    if old_intensity > 127 {
-        new_intensity = 255;
-    } else {
+    if old_intensity < 128 {
         new_intensity = 0;
+    } else {
+        new_intensity = 255;
     }
 
     let new_pixel = Luma::<u8>([new_intensity]);

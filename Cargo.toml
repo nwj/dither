@@ -2,6 +2,8 @@
 name = "dither"
 version = "0.1.0"
 edition = "2021"
+authors = ["Nick Willett-Jeffries <nwillettjeffries@gmail.com>"]
+description = "A monochromatic image dithering tool"
 
 [dependencies]
 anyhow = "1.0.53"
