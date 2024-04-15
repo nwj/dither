@@ -287,10 +287,9 @@ fn generic_dithering(img: &mut GrayImage, diffusion_matrix: &[Coord]) {
             let quant_err = quantize_pixel(img, x, y);
 
             for &Coord((delta_x, delta_y), (numerator, denominator)) in diffusion_matrix {
-                if let (Some(new_x), Some(new_y)) = (
-                    checked_add_signed(x, delta_x),
-                    checked_add_signed(y, delta_y),
-                ) {
+                if let (Some(new_x), Some(new_y)) =
+                    (x.checked_add_signed(delta_x), y.checked_add_signed(delta_y))
+                {
                     diffuse_error_to_pixel(img, new_x, new_y, quant_err, numerator, denominator)
                 }
             }
@@ -322,14 +321,5 @@ fn coerce_to_u8(i: i16) -> u8 {
         std::u8::MIN
     } else {
         i as u8
-    }
-}
-
-// TODO replace with the std library's version of checked_add_signed, once that enters rust stable
-fn checked_add_signed(a: u32, b: i32) -> Option<u32> {
-    if b.is_positive() {
-        a.checked_add(b as u32)
-    } else {
-        a.checked_sub(b.abs() as u32)
     }
 }
