@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use clap::{ValueEnum, Parser};
+use clap::{Parser, ValueEnum};
 use image::io::Reader as ImageReader;
 use image::{GenericImageView, GrayImage, Luma};
 use rand::prelude::*;
@@ -64,9 +64,7 @@ impl fmt::Display for Mode {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let mut img = ImageReader::open(&args.input_path)?
-        .decode()?
-        .to_luma8();
+    let mut img = ImageReader::open(&args.input_path)?.decode()?.to_luma8();
 
     match args.mode {
         Mode::Quantization => quantization(&mut img),
@@ -256,13 +254,8 @@ fn sierra_lite_dithering(img: &mut GrayImage) {
 
 fn quantize_pixel(img: &mut GrayImage, x: u32, y: u32) -> i16 {
     let old_intensity = img.get_pixel(x, y)[0];
-    let new_intensity;
 
-    if old_intensity < 128 {
-        new_intensity = 0;
-    } else {
-        new_intensity = 255;
-    }
+    let new_intensity = if old_intensity < 128 { 0 } else { 255 };
 
     let new_pixel = Luma::<u8>([new_intensity]);
     img.put_pixel(x, y, new_pixel);
@@ -273,13 +266,12 @@ fn quantize_pixel(img: &mut GrayImage, x: u32, y: u32) -> i16 {
 fn quantize_pixel_with_rng(mut rng: impl rand::Rng, img: &mut GrayImage, x: u32, y: u32) -> i16 {
     let old_intensity = img.get_pixel(x, y)[0];
     let random_intensity = rng.gen_range(0..255);
-    let new_intensity;
 
-    if random_intensity > old_intensity {
-        new_intensity = 0;
+    let new_intensity = if random_intensity > old_intensity {
+        0
     } else {
-        new_intensity = 255;
-    }
+        255
+    };
 
     let new_pixel = Luma::<u8>([new_intensity]);
     img.put_pixel(x, y, new_pixel);
