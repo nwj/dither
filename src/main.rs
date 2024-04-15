@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use clap::{ArgEnum, Parser};
+use clap::{ValueEnum, Parser};
 use image::io::Reader as ImageReader;
 use image::{GenericImageView, GrayImage, Luma};
 use rand::prelude::*;
@@ -11,7 +11,6 @@ use std::path::PathBuf;
 #[clap(author, version, about)]
 struct Args {
     /// Input image file. Most common image formats (JPG, PNG, etc.) are supported.
-    #[clap(parse(from_str))]
     input_path: PathBuf,
     /// Optional path for the output image file.
     ///
@@ -19,14 +18,13 @@ struct Args {
     ///
     /// Defaults to the input file name appended with the name of the dithering algorithm and
     /// converted to PNG (if necessary). For example, 'input.jpg' becomes 'input-floyd-steinberg.png'.
-    #[clap(parse(from_str))]
     output_path: Option<PathBuf>,
     /// Specify the dithering algorithm that will be applied.
-    #[clap(short,long, arg_enum, default_value_t = Mode::FloydSteinberg)]
+    #[clap(short, long, default_value_t = Mode::FloydSteinberg)]
     mode: Mode,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, ArgEnum)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
 enum Mode {
     Quantization,
     Random,
